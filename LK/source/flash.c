@@ -523,6 +523,10 @@ IWRAM_CODE u8 BootGame(ItemConfig config, FlashStatus status)
 	REG_BLDY = 0;
 
 	// Boot ROM
+	// 游戏接管前关闭总中断并清除待处理标志，防止初始化途中进入 IRQ。
+	REG_IME = 0;
+	REG_IE = 0;
+	REG_IF = 0x3FFF;
 	__asm("swi 0"); // Soft reset
 
 	return 3;
