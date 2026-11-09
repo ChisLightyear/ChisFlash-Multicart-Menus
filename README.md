@@ -59,7 +59,7 @@ Actual mGBA captures of the released menus, using demonstration titles and origi
 
 `v2026.11.09` 统一修正四套菜单交接游戏前的中断状态，避免部分游戏在初始化完成前提前进入中断，造成黑屏或异常启动。马里奥赛车汉化版跳过开场图后的黑屏是本次修复案例。
 
-四套菜单已通过 01G Verilog 功能仿真与 mGBA、真实 GBA BIOS 联调，能够进入马里奥赛车赛道；另已验证普通、WL 和通用映射启动组合。本版尚未完成实卡验证，详细验证范围见 Release。
+四套菜单已通过 01G Verilog 功能仿真与 mGBA、真实 GBA BIOS 联调，能够进入马里奥赛车赛道；另已验证普通、WL 和通用映射启动组合。
 
 ### 许可证
 
@@ -104,7 +104,7 @@ Output files are written to the corresponding subdirectory under `.build/`.
 
 `v2026.11.09` corrects interrupt state before handing control to a game in all four menus. This prevents interrupts from firing before game initialization is complete, which can cause a black screen or abnormal startup. The reported case was a Chinese translation of Mario Kart that went black after its introductory splash screen.
 
-All four menus were tested with a functional 01G Verilog model, mGBA, and a real GBA BIOS dump, successfully reaching a race. Traditional, WL, and universal mapping startup combinations were also checked. This release has not yet been verified on physical cartridges; see the Release notes for test coverage.
+All four menus were tested with a functional 01G Verilog model, mGBA, and a real GBA BIOS dump, successfully reaching a race. Traditional, WL, and universal mapping startup combinations were also checked.
 
 ### License
 
