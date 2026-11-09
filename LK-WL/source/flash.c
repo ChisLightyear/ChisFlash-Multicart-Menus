@@ -10,6 +10,8 @@ Author: Lesserkuma (github.com/lesserkuma), ZaindORp (github.com/orzgithub)
 #include "main.h"
 #include "flash.h"
 
+extern void BootGameReset(void) __attribute__((long_call, noreturn));
+
 u8 flash_type;
 u8 sram_bank_type;
 u8 *itemlist;
@@ -691,13 +693,7 @@ IWRAM_CODE u8 BootGame(ItemConfig config, FlashStatus status, u16 entry_slot, u8
 	REG_BLDY = 0;
 
 	// Boot ROM
-	// 游戏接管前关闭总中断并清除待处理标志，防止初始化途中进入 IRQ。
-	REG_IME = 0;
-	// 关闭显示中断源，避免初始化游戏时重新产生 VBlank 请求。
-	REG_DISPSTAT = 0;
-	REG_IE = 0;
-	REG_IF = 0x3FFF;
-	__asm("swi 0"); // Soft reset
+	BootGameReset();
 
 	return BOOT_GAME_ERR_LAUNCH_FAILED;
 }
