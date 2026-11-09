@@ -23,6 +23,34 @@ Author: Lesserkuma (github.com/lesserkuma), ZaindORp (github.com/orzgithub)
 #define MENU_REPEAT_INITIAL_DELAY 12
 #define MENU_REPEAT_INTERVAL 3
 
+// VBlank 中采集按键边沿，整页重绘期间的短按也按顺序保留。
+#define MENU_KEY_QUEUE_SIZE 16
+static volatile u16 sKeyQueue[MENU_KEY_QUEUE_SIZE];
+static volatile u8 sKeyRead;
+static volatile u8 sKeyWrite;
+static u16 sSampledKeys;
+
+static void MenuSampleKeys(void) {
+	u16 held = (~REG_KEYINPUT) & 0x03FF;
+	u16 pressed = held & ~sSampledKeys;
+	sSampledKeys = held;
+	if (pressed != 0) {
+		u8 next = (sKeyWrite + 1) & (MENU_KEY_QUEUE_SIZE - 1);
+		if (next != sKeyRead) {
+			sKeyQueue[sKeyWrite] = pressed;
+			sKeyWrite = next;
+		}
+	}
+}
+
+static u16 MenuTakePressedKeys(void) {
+	u8 index = sKeyRead;
+	if (index == sKeyWrite) return 0;
+	u16 pressed = sKeyQueue[index];
+	sKeyRead = (index + 1) & (MENU_KEY_QUEUE_SIZE - 1);
+	return pressed;
+}
+
 extern FontSpecs sFontSpecs;
 extern u16 FallbackCharacter;
 extern u16 ArrowCharacter;
@@ -73,6 +101,8 @@ int main(void) {
 	BOOL boot_failed = FALSE;
 
 	irqInit();
+	sSampledKeys = (~REG_KEYINPUT) & 0x03FF;
+	irqSet(IRQ_VBLANK, MenuSampleKeys);
 	irqEnable(IRQ_VBLANK);
 
 	FlashDetectType();
@@ -245,7 +275,7 @@ int main(void) {
 		VBlankIntrWait();
 		scanKeys();
 		kHeld = keysHeld();
-		kDown = keysDown();
+		kDown = MenuTakePressedKeys();
 		if ((kHeld_boot == 0) || (kHeld != kHeld_boot)) {
 			kHeld_boot = 0;
 		} else {

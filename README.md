@@ -57,9 +57,11 @@ Actual mGBA captures of the released menus, using demonstration titles and origi
 
 ### 启动兼容性修复
 
-`v2026.11.09` 统一修正四套菜单交接游戏前的中断状态，避免部分游戏在初始化完成前提前进入中断，造成黑屏或异常启动。马里奥赛车汉化版跳过开场图后的黑屏是本次修复案例。
+`v2026.11.09-r2` 在四套菜单交接游戏前统一关闭 `IME`、`DISPSTAT` 的显示中断源和 `IE`，清理 `IF`，修复马里奥赛车汉化版跳过开场黑屏，以及超级火枪英雄从菜单启动黑屏的问题。
 
-四套菜单已通过 01G Verilog 功能仿真与 mGBA、真实 GBA BIOS 联调，能够进入马里奥赛车赛道；另已验证普通、WL 和通用映射启动组合。
+LK 与 LK 水线版同时优化字体绘制和字形索引缓存，并在 VBlank 中采集按键，保留翻页重绘期间的短按。相同中文列表的 mGBA 对照中，上下重绘从 7 帧降至 3 帧（约 50 ms），整页重绘从 19 帧降至 6 帧（约 100 ms），画面逐像素一致；约每 100 ms 一次的连续上下、跨页及首尾循环测试通过。
+
+四套菜单已通过 01G Verilog 功能仿真与 mGBA、真实 GBA BIOS 联调，能够进入马里奥赛车赛道和超级火枪英雄实际关卡；另已验证普通、WL 和通用映射启动组合，以及启动失败后返回菜单。
 
 ### 许可证
 
@@ -102,9 +104,11 @@ Output files are written to the corresponding subdirectory under `.build/`.
 
 ### Startup compatibility fix
 
-`v2026.11.09` corrects interrupt state before handing control to a game in all four menus. This prevents interrupts from firing before game initialization is complete, which can cause a black screen or abnormal startup. The reported case was a Chinese translation of Mario Kart that went black after its introductory splash screen.
+`v2026.11.09-r2` clears `IME`, the display interrupt sources in `DISPSTAT`, `IE`, and pending `IF` flags before all four menus hand control to a game. This fixes the black screen after the Chinese Mario Kart intro and the black screen when launching Gunstar Super Heroes from the menu.
 
-All four menus were tested with a functional 01G Verilog model, mGBA, and a real GBA BIOS dump, successfully reaching a race. Traditional, WL, and universal mapping startup combinations were also checked.
+LK and LK Waterline also use faster font rendering and a glyph-index cache. Key presses are sampled during VBlank and retained while a page is being redrawn. In mGBA comparisons using the same Chinese list, up/down redraws fell from 7 to 3 frames (about 50 ms), and full-page redraws from 19 to 6 frames (about 100 ms), with identical final pixels. Repeated presses approximately 100 ms apart passed up/down, page-boundary, and wraparound checks.
+
+All four menus were tested with a functional 01G Verilog model, mGBA, and a real GBA BIOS dump, successfully reaching a Mario Kart race and a Gunstar Super Heroes stage. Traditional, WL, and universal mapping startup combinations, as well as recovery after a failed launch, were also checked.
 
 ### License
 

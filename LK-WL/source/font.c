@@ -3,6 +3,7 @@ GBA Multi Game Menu
 Author: Lesserkuma (github.com/lesserkuma)
 */
 
+#include <gba.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,6 +24,14 @@ s8 FontMarginBottom;
 
 u8 last_font = -1;
 const u8* font;
+
+// 字体绘制在 IWRAM 执行，像素合并内联，避免每个像素往返访问 ROM 代码。
+static inline void DrawFontPixel(volatile u16 *buffer, u8 row, u8 col, u8 color) {
+	u16 offset = (row * SCREEN_WIDTH + col) >> 1;
+	u16 pixel = buffer[offset];
+	buffer[offset] = (col & 1) ? ((u16)color << 8) | (pixel & 0x00FF)
+		: (pixel & 0xFF00) | color;
+}
 
 void LoadFont(u8 index) {
 	if (index != last_font) {
@@ -103,27 +112,26 @@ void LoadNFTR(const u8* nftr_data) {
 	sFontSpecs.bpp = sCGLP_Header.bpp;
 }
 
-u16 GetFontIndex(u16 ch, const u8* nftr_data) {
+IWRAM_CODE ARM_CODE static u16 FindFontIndex(u16 ch, const u8* nftr_data) {
 	u32 pos = sFontSpecs.cmap_offset;
 	while (TRUE) {
 		if (pos <= 0) return 0xFFFF;
-		CMAP_Header tCMAP_Header;
-		memcpy(&tCMAP_Header, nftr_data+pos, sizeof(tCMAP_Header));
+		const CMAP_Header *header = (const CMAP_Header *)(nftr_data + pos);
 		pos += 20;
 		
-		if (ch < tCMAP_Header.start_code || ch > tCMAP_Header.end_code) {
+		if (ch < header->start_code || ch > header->end_code) {
 			// CMAP doesn't have this character
-			pos = tCMAP_Header.next_offset - 8;
+			pos = header->next_offset - 8;
 			continue;
 		}
 		
-		if (tCMAP_Header.type == 0) {
+		if (header->type == 0) {
 			u16 index_offset = nftr_data[pos+1] << 8 | nftr_data[pos];
-			return ch - tCMAP_Header.start_code + index_offset;
-		} else if (tCMAP_Header.type == 1) {
-			pos += (u32)(ch - tCMAP_Header.start_code) * sizeof(u16);
+			return ch - header->start_code + index_offset;
+		} else if (header->type == 1) {
+			pos += (u32)(ch - header->start_code) * sizeof(u16);
 			return nftr_data[pos+1] << 8 | nftr_data[pos];
-		} else if (tCMAP_Header.type == 2) {
+		} else if (header->type == 2) {
 			u16 index_offset = nftr_data[pos+1] << 8 | nftr_data[pos];
 			pos += 2;
 			for (u16 i = 0; i < index_offset; i++) {
@@ -139,7 +147,26 @@ u16 GetFontIndex(u16 ch, const u8* nftr_data) {
 	}
 }
 
-void GetFontWidths(u16 index, const u8* nftr_data, u8* a, u8* b, u8* c) {
+typedef struct GlyphIndexCache_ {
+	const u8 *font_data;
+	u16 character;
+	u16 index;
+} GlyphIndexCache;
+
+// 同一页上下移动反复使用相同汉字，缓存映射结果并以字体指针区分字库。
+EWRAM_BSS static GlyphIndexCache sGlyphIndexCache[256];
+
+IWRAM_CODE ARM_CODE u16 GetFontIndex(u16 ch, const u8* nftr_data) {
+	GlyphIndexCache *entry = &sGlyphIndexCache[(ch ^ (ch >> 8)) & 255];
+	if (entry->font_data == nftr_data && entry->character == ch) return entry->index;
+	u16 index = FindFontIndex(ch, nftr_data);
+	entry->font_data = nftr_data;
+	entry->character = ch;
+	entry->index = index;
+	return index;
+}
+
+IWRAM_CODE ARM_CODE void GetFontWidths(u16 index, const u8* nftr_data, u8* a, u8* b, u8* c) {
 	u32 pos = sFontSpecs.cwdh_offset;
 	pos = pos + (index * 3);
 	*a = nftr_data[pos++];
@@ -154,7 +181,7 @@ void AsciiToUnicode(char* text, u16* output) {
 	}
 }
 
-void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data, volatile void* vram, BOOL highlighted) {
+IWRAM_CODE ARM_CODE void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data, volatile void* vram, BOOL highlighted) {
 	u8 pos_left = 0;
 	u8 glyph_width = 0;
 	u8 glyph_left = 0;
@@ -169,7 +196,8 @@ void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data,
 		color_modifier = 10;
 	}
 	
-	memset(canvas, 255, SCREEN_WIDTH * sFontSpecs.max_height);
+	// 左对齐标题直接写入显存，不需要清空对齐用的临时画布。
+	if (align != ALIGN_LEFT) memset(canvas, 255, SCREEN_WIDTH * sFontSpecs.max_height);
 	for (u8 i = 0; i < length; i++) {
 		u8 a, b, c = 0;
 		
@@ -230,7 +258,7 @@ void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data,
 					for (u8 y = 0; y < sFontSpecs.max_width; y++) {
 						u8 p = pixels[(x * sFontSpecs.max_width) + y];
 						if (p == 1) {
-							SetPixel(vram, py + x, px + y + pos_left, 254 - color_modifier);
+							DrawFontPixel(vram, py + x, px + y + pos_left, 254 - color_modifier);
 						}
 					}
 				}
@@ -248,7 +276,7 @@ void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data,
 					for (u8 y = 0; y < sFontSpecs.max_width; y++) {
 						u8 p = pixels[(x * sFontSpecs.max_width) + y];
 						if (p != 0) {
-							SetPixel(vram, py + x, px + y + pos_left, p + 250 - color_modifier);
+							DrawFontPixel(vram, py + x, px + y + pos_left, p + 250 - color_modifier);
 						}
 					}
 				}
@@ -308,7 +336,7 @@ void DrawText(u8 px, u8 py, u8 align, u16* text, u8 length, const u8* nftr_data,
 				continue;
 			}
 			if (canvas[c] != 255) {
-				SetPixel(vram, py + x, px + y, canvas[c]);
+				DrawFontPixel(vram, py + x, px + y, canvas[c]);
 			}
 			c++;
 		}
