@@ -1,6 +1,6 @@
 # ChisFlash Multicart Menus
 
-[![简体中文](previews/zh-cn.svg)](README.zh-CN.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 Four GBA multicart menus for ChisFlash: **LK, LK Waterline, NS, and NS Lite**.
 

@@ -1,6 +1,6 @@
 # ChisFlash GBA 合卡菜单
 
-[![English](previews/english.svg)](README.md)
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 ChisFlash GBA 合卡菜单合集，包括 **LK、LK 水线、NS 完整版和精简 NS**。
 
