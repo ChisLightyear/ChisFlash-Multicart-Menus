@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="30" viewBox="0 0 96 30">
+  <rect x="0.5" y="0.5" width="95" height="29" rx="6" fill="#24292f" stroke="#57606a"/>
+  <g fill="none" stroke="#fff" stroke-width="1.2">
+    <circle cx="16" cy="15" r="7"/>
+    <ellipse cx="16" cy="15" rx="3" ry="7"/>
+    <path d="M9 15h14"/>
+  </g>
+  <text x="58" y="20" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" fill="#fff">English</text>
+</svg>
