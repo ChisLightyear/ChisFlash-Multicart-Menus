@@ -190,7 +190,8 @@ static UiStatusTone BuildStatusText(
 		} else {
 			WlRomMapRecord wl_record;
 			if (ReadWlRomMapRecord(entry_slot, &wl_record)) {
-				const char *mode = cartridge->backend == CART_BACKEND_WL ? "WL" : "UNI";
+				const char *mode = cartridge->backend == CART_BACKEND_AUSAR ? "CHDR" :
+					(cartridge->backend == CART_BACKEND_WL ? "WL" : "UNI");
 				snprintf(
 					ascii,
 					64,
@@ -294,7 +295,7 @@ int main(void) {
 	};
 
 	if (roms_total == 0) {
-		SetStatusText(status_ascii, status_unicode, "请先用合卡器添加游戏", &status_length);
+		SetStatusText(status_ascii, status_unicode, cartridge->backend == CART_BACKEND_AUSAR ? "请通过 USB 添加游戏" : "请先用合卡器添加游戏", &status_length);
 		view.status_length = status_length;
 		UiRenderMenu(&view);
 		MenuWaitForVBlank();

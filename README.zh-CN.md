@@ -14,8 +14,10 @@ ChisFlash GBA 合卡菜单合集，包括 **LK、LK 水线、NS 完整版和精�
 |---|---|---|---|
 | `LK/` | LK 菜单 | 经典列表界面，普通合卡布局 | `lk_multimenu.gba` |
 | `LK-WL/` | LK 水线菜单 | 经典列表界面，支持配套硬件的碎片映射布局 | `wl_magic_menu.gba` |
-| `NS/` | NS 完整版 | 封面、设置与容量显示，支持中英文界面切换 | `universal_menu.gba` |
-| `NS-Lite/` | 精简 NS | 精简布局，固定中文界面 | `simplified_ns_menu.gba` |
+| `NS/` | NS 完整版 | 封面、设置与容量显示，支持中英文界面切换 | `menu_NS.gba` |
+| `NS-Lite/` | 精简 NS | 精简布局，固定中文界面 | `menu_NSLite.gba` |
+
+两款 NS 菜单都能读取 Ausar CHDR 游戏列表，并显示已导入的封面。水线固件支持菜单文件名前缀时，可通过 USB 直接拖入任一 NS 菜单替换当前菜单。卡上统一显示为 `menu.gba`。
 
 请根据卡带硬件及现有合卡布局选择菜单。碎片映射需要硬件和工具共同支持。LK 与 LK 水线采用相同的经典界面，两者的主要区别是合卡布局和映射方式。
 

@@ -9,6 +9,7 @@ Author: Lesserkuma (github.com/lesserkuma), ZaindORp (github.com/orzgithub)
 
 #include "main.h"
 #include "flash.h"
+#include "chd_cover.h"
 
 extern void BootGameReset(void) __attribute__((long_call, noreturn));
 
@@ -74,6 +75,46 @@ static BOOL ReadImageManifest(ImageManifest *manifest)
 	return ComputeChecksum32(base, manifest->size, manifest->size - sizeof(u32)) == manifest->checksum;
 }
 
+static EWRAM_BSS chd_dir ausar_dir;
+static EWRAM_BSS ItemConfig ausar_items[CHD_ENTRY_COUNT];
+
+static int AusarRead(void *ctx, uint32_t addr, void *buf, uint32_t len)
+{
+    (void)ctx;
+    memcpy(buf, (const u8 *)AGB_ROM + addr, len);
+    return 0;
+}
+
+static BOOL LoadAusarDirectory(void)
+{
+    static const chd_io io = { NULL, AusarRead, NULL, NULL };
+    if (chd_load(&io, &ausar_dir, NULL) != CHD_OK) return FALSE;
+
+    /* 显示顺序与存档槽分开。目录中的槽号始终保留在 save_index。 */
+    u16 count = 0;
+    for (unsigned slot = 0; slot < CHD_ENTRY_COUNT; ++slot) {
+        const chd_entry *entry = &ausar_dir.entries[slot];
+        if (!entry->in_use) continue;
+        unsigned pos = count++;
+        while (pos && ausar_dir.entries[ausar_items[pos - 1].save_index].order > entry->order) {
+            ausar_items[pos] = ausar_items[pos - 1];
+            --pos;
+        }
+        ItemConfig *item = &ausar_items[pos];
+        memset(item, 0, sizeof(*item));
+        item->save_index = slot;
+        item->cover_index = entry->cover_bank;
+        item->save_type = entry->save_type == CHD_SAVE_NONE ? SRAM_NONE : SRAM_1M;
+        item->rom_size = (entry->rom_size + 0x7ffffu) >> 19;
+        item->rom_offset = chd_bucket(entry, 0) * 8;
+        unsigned max_title = sizeof(item->title) / sizeof(item->title[0]);
+        item->title_length = entry->name_len < max_title ? entry->name_len : max_title;
+        memcpy(item->title, entry->name, item->title_length * sizeof(u16));
+    }
+    sCartridgeProfile.entry_count = count;
+    return TRUE;
+}
+
 void CartridgeInitialize(void)
 {
 	const ImageManifest *raw_manifest = (const ImageManifest *)((const u8 *)AGB_ROM + IMAGE_MANIFEST_OFFSET);
@@ -92,7 +133,14 @@ void CartridgeInitialize(void)
 	{
 		sCartridgeProfile.backend = CART_BACKEND_NONE;
 	}
-	else if (manifest_present)
+	else if (LoadAusarDirectory())
+    {
+        sCartridgeProfile.backend = CART_BACKEND_AUSAR;
+        sCartridgeProfile.status_offset = CHD_STATUS_ADDR;
+        sCartridgeProfile.save_slot_count = CHD_ENTRY_COUNT;
+        sCartridgeProfile.wl_mapping_valid = FALSE;
+    }
+    else if (manifest_present)
 	{
 		if (!sCartridgeProfile.manifest_valid || !sCartridgeProfile.wl_mapping_valid)
 		{
@@ -159,7 +207,7 @@ BOOL CartridgeCanLaunch(ItemConfig config, u16 entry_slot)
 		return FALSE;
 	if (config.save_type != SRAM_NONE && config.save_index >= sCartridgeProfile.save_slot_count)
 		return FALSE;
-	if (sCartridgeProfile.backend == CART_BACKEND_WL || sCartridgeProfile.backend == CART_BACKEND_UNIVERSAL)
+	if (sCartridgeProfile.backend == CART_BACKEND_AUSAR || sCartridgeProfile.backend == CART_BACKEND_WL || sCartridgeProfile.backend == CART_BACKEND_UNIVERSAL)
 		return ReadWlRomMapRecord(entry_slot, &wl_record);
 	return TRUE;
 }
@@ -257,6 +305,15 @@ static u8 ReadWlRomMapRecordInternal(u16 entry_slot, WlRomMapRecord *record)
 	if (record == NULL || entry_slot >= WL_ROM_MAP_RECORD_COUNT)
 		return BOOT_GAME_ERR_WL_RECORD;
 
+    if (sCartridgeProfile.backend == CART_BACKEND_AUSAR) {
+        if (entry_slot >= sCartridgeProfile.entry_count) return BOOT_GAME_ERR_WL_RECORD;
+        const chd_entry *entry = &ausar_dir.entries[ausar_items[entry_slot].save_index];
+        memset(record, 0, sizeof(*record));
+        record->logical_bucket_count = entry->bucket_count;
+        memcpy(record->phys_block_id, entry->buckets, entry->bucket_count);
+        return BOOT_GAME_OK;
+    }
+
 	header = GetWlMappingHeader();
 	if (!IsWlMappingHeaderValid(header))
 		return BOOT_GAME_ERR_WL_METADATA;
@@ -313,7 +370,8 @@ static void FlashCalcOffsets(void)
 	if (sCartridgeProfile.backend != CART_BACKEND_NONE && flash_sector_size != 0)
 	{
 		flash_status_sector_offset = sCartridgeProfile.status_offset / flash_sector_size;
-		itemlist = (u8 *)(AGB_ROM + sCartridgeProfile.itemlist_offset);
+		itemlist = sCartridgeProfile.backend == CART_BACKEND_AUSAR ? (u8 *)ausar_items :
+			(u8 *)(AGB_ROM + sCartridgeProfile.itemlist_offset);
 	}
 }
 
@@ -389,7 +447,7 @@ IWRAM_CODE void FlashDetectType(void)
 	_FLASH_WRITE(0xAAA, 0x90);
 	data = *(vu32 *)AGB_ROM;
 	_FLASH_WRITE(0, 0xF0);
-	if (data == 0x227E0001 || data == 0x227E0089 || data == 0x227E00C2)
+	if (data == 0x227E0001 || data == 0x227E0089 || data == 0x227E00C2 || data == 0x227E0020)
 	{
 		REG_IE = ie;
 		flash_type = 4;
@@ -704,11 +762,12 @@ IWRAM_CODE u8 BootGame(ItemConfig config, FlashStatus status, u16 entry_slot)
 	if (sCartridgeProfile.flash_type == 0 || sCartridgeProfile.backend == CART_BACKEND_NONE)
 		return BOOT_GAME_ERR_UNSUPPORTED_CART;
 	if (!CartridgeCanLaunch(config, entry_slot)) return BOOT_GAME_ERR_ENTRY_RANGE;
-	BOOL local_magic_mapper = HasLocalMagicMapper();
+	BOOL ausar = sCartridgeProfile.backend == CART_BACKEND_AUSAR;
+	BOOL local_magic_mapper = !ausar && HasLocalMagicMapper();
 	if (local_magic_mapper) status.sram_bank_type = 1;
 
 	WlRomMapRecord wl_record;
-	if (sCartridgeProfile.backend == CART_BACKEND_WL || sCartridgeProfile.backend == CART_BACKEND_UNIVERSAL)
+	if (sCartridgeProfile.backend == CART_BACKEND_AUSAR || sCartridgeProfile.backend == CART_BACKEND_WL || sCartridgeProfile.backend == CART_BACKEND_UNIVERSAL)
 	{
 		u8 wl_error = ReadWlRomMapRecordInternal(entry_slot, &wl_record);
 		if (wl_error != BOOT_GAME_OK) return wl_error;
@@ -722,7 +781,7 @@ IWRAM_CODE u8 BootGame(ItemConfig config, FlashStatus status, u16 entry_slot)
 
 	u8 previous_save_index = status.last_boot_save_index;
 	SAVE_TYPE previous_save_type = status.last_boot_save_type;
-	if (sCartridgeProfile.backend == CART_BACKEND_WL && !local_magic_mapper)
+	if (ausar || (sCartridgeProfile.backend == CART_BACKEND_WL && !local_magic_mapper))
 	{
 		status.last_boot_save_index = 0xFF;
 		status.last_boot_save_type = SRAM_NONE;
@@ -745,9 +804,10 @@ IWRAM_CODE u8 BootGame(ItemConfig config, FlashStatus status, u16 entry_slot)
 	}
 	REG_IE = 0;
 
-	if (sCartridgeProfile.backend == CART_BACKEND_WL && !local_magic_mapper)
+	if (ausar || (sCartridgeProfile.backend == CART_BACKEND_WL && !local_magic_mapper))
 	{
-		WlSendSaveSlotIndex((u8)entry_slot);
+		WlSendSaveSlotIndex(ausar ? config.save_index : (u8)entry_slot);
+		if (ausar) *(vu8 *)0x0E000009 = ausar_dir.entries[config.save_index].upper_die_mask;
 		if (!WlTryLaunchMap(&wl_record))
 		{
 			REG_IE = 1;

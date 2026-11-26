@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "flash.h"
+#include "chd_cover.h"
 #include "font.h"
 #include "ui.h"
 #include "nor_info.h"
@@ -147,6 +149,7 @@ static const u8 *sCoverPack;
 static CoverPackHeader sCoverHeader;
 static u32 sCoverPackSize;
 static BOOL sCoverUsesEntrySlots;
+static BOOL sAusarCovers;
 
 static volatile u16 *UiBackBuffer(void) {
 	return (REG_DISPCNT & 0x0010) ? UI_PAGE_0 : UI_PAGE_1;
@@ -893,7 +896,12 @@ static const u8 *UiGetCoverBitmap(u8 cover_index) {
 
 static const u8 *UiGetItemCover(const ItemConfig *item, u16 entry_slot) {
 	u16 cover_index;
-	if (item == NULL || sCoverPack == NULL) return NULL;
+	if (item == NULL) return NULL;
+    if (sAusarCovers) {
+        if (item->cover_index != COVER_BANK_A && item->cover_index != COVER_BANK_B) return NULL;
+        return (const u8 *)AGB_ROM + chd_cover_addr(item->save_index,item->cover_index);
+    }
+    if (sCoverPack == NULL) return NULL;
 	if ((item->cover_flags & UI_COVER_FLAG_PRESENT) != 0) {
 		cover_index = item->cover_index;
 	} else if (sCoverUsesEntrySlots) {
@@ -920,7 +928,7 @@ IWRAM_CODE ARM_CODE static void UiDrawCard(volatile u16 *buffer, s16 x, u16 item
 	UiFillRect(buffer, card_x, card_y, card_width, card_height, color);
 
 	BOOL cover_drawn = FALSE;
-	if (sCoverPack != NULL) {
+	if (sCoverPack != NULL || sAusarCovers) {
 		const u8 *cover = UiGetItemCover(item, (u16)(cache_key / ITEM_CONFIG_SIZE));
 		if (cover != NULL) {
 			UiBlitCover(buffer, x, UI_CARD_Y - lift, cover);
@@ -947,6 +955,10 @@ void UiInitialize(void) {
 	memset(sCoverCache, 0, sizeof(sCoverCache));
 	sCoverCacheStamp = 0;
 	sCoverUsesEntrySlots = FALSE;
+    sAusarCovers = CartridgeGetProfile()->backend == CART_BACKEND_AUSAR;
+	if (sAusarCovers) {
+		for (unsigned i=32;i<212;++i) BG_PALETTE[i]=cover_rgb555(i);
+	}
 
 	BG_PALETTE[UI_COLOR_BACKGROUND] = RGB555(0xF7, 0xF8, 0xFA);
 	BG_PALETTE[UI_COLOR_SURFACE] = RGB555(0xFF, 0xFF, 0xFF);
@@ -983,7 +995,7 @@ void UiInitialize(void) {
 
 	CoverTailTrailer trailer;
 	memcpy(&trailer, UI_COVER_ROM_BASE + UI_COVER_TAIL_TRAILER_OFFSET, sizeof(trailer));
-	if (trailer.magic == UI_COVER_TAIL_MAGIC &&
+	if (!sAusarCovers && trailer.magic == UI_COVER_TAIL_MAGIC &&
 		trailer.version == UI_COVER_FORMAT_VERSION &&
 		trailer.size == sizeof(CoverTailTrailer) &&
 		trailer.pack_offset < UI_COVER_TAIL_TRAILER_OFFSET &&
@@ -1322,7 +1334,8 @@ static void UiDrawCartridgeInfoPage(volatile u16 *buffer, const UiToolView *view
 	UiDrawCardInfoLine(buffer, 5, UiLanguageText("菜单扇区", "MENU SECTOR"), value);
 	const char *layout = "UNKNOWN";
 	if (cartridge != NULL) {
-		if (cartridge->backend == CART_BACKEND_UNIVERSAL) layout = "UMMF + WLMI v2";
+		if (cartridge->backend == CART_BACKEND_AUSAR) layout = "Ausar CHDR";
+		else if (cartridge->backend == CART_BACKEND_UNIVERSAL) layout = "UMMF + WLMI v2";
 		else if (cartridge->backend == CART_BACKEND_WL) layout = "WLMI v2";
 		else if (cartridge->backend == CART_BACKEND_LEGACY) layout = "Legacy";
 	}
@@ -1380,13 +1393,14 @@ static void UiDrawRomMapPage(volatile u16 *buffer, const UiToolView *view) {
 		return;
 	}
 
+	BOOL ausar = view->cartridge && view->cartridge->backend == CART_BACKEND_AUSAR;
 	if (capacity_mib == 0) capacity_mib = (u32)view->bucket_count * 4;
 	snprintf(value, sizeof(value), "%u MiB", (unsigned int)capacity_mib);
-	UiDrawUtf8(buffer, 8, 7, ALIGN_RIGHT, value);
+	UiDrawUtf8(buffer, 8, 7, ALIGN_RIGHT, ausar ? "CHDR" : value);
 	UiDrawUtf8(buffer, 8, 21, ALIGN_RIGHT, UiLanguageText("每格 4MiB", "4MiB/CELL"));
 	UiDrawMapLegend(buffer, 16, 44, UI_COLOR_BUSY, UiLanguageText("系统", "SYSTEM"));
 	UiDrawMapLegend(buffer, 90, 44, UI_COLOR_READY, UiLanguageText("游戏", "GAMES"));
-	UiDrawMapLegend(buffer, 168, 44, UI_COLOR_SURFACE, UiLanguageText("空闲", "FREE"));
+	UiDrawMapLegend(buffer, 168, 44, UI_COLOR_SURFACE, ausar ? UiLanguageText("未分配", "UNUSED") : UiLanguageText("空闲", "FREE"));
 
 	u8 columns = view->bucket_count <= 64 ? 16 : 32;
 	u8 pitch = 192 / columns;
@@ -1419,8 +1433,11 @@ static void UiDrawRomMapPage(volatile u16 *buffer, const UiToolView *view) {
 
 	snprintf(value, sizeof(value), UiLanguageText("系统 %uM  游戏 %uM  空闲 %uM", "SYS %uM  GAMES %uM  FREE %uM"),
 		(unsigned int)system_count * 4, (unsigned int)game_count * 4, (unsigned int)free_count * 4);
+	if (ausar) snprintf(value, sizeof(value), UiLanguageText("系统 %uM  游戏 %uM", "SYS %uM  GAMES %uM"),
+		(unsigned)system_count * 4, (unsigned)game_count * 4);
 	UiDrawUtf8(buffer, 8, 115, ALIGN_CENTER, value);
-	UiDrawUtf8(buffer, 8, 130, ALIGN_CENTER, UiLanguageText("空闲表示目录未分配", "FREE = UNALLOCATED"));
+	UiDrawUtf8(buffer, 8, 130, ALIGN_CENTER, ausar ? UiLanguageText("总容量请通过 USB 查看", "TOTAL CAPACITY VIA USB")
+		: UiLanguageText("空闲表示目录未分配", "FREE = UNALLOCATED"));
 	UiDrawToolFooter(buffer, NULL);
 	if (max_scroll_row != 0) {
 		u8 rows = max_scroll_row + UI_MAP_VISIBLE_ROWS;

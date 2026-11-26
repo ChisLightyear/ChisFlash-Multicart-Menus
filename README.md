@@ -14,8 +14,8 @@ This repository contains source code, required assets, and build files for all f
 |---|---|---|---|
 | `LK/` | LK | Classic list interface for traditional multicart layouts | `lk_multimenu.gba` |
 | `LK-WL/` | LK Waterline | Classic list interface with fragmented block mapping on compatible hardware | `wl_magic_menu.gba` |
-| `NS/` | NS | Covers, settings, capacity display, and switchable Chinese/English UI | `universal_menu.gba` |
-| `NS-Lite/` | NS Lite | Simplified layout with a fixed Chinese UI | `simplified_ns_menu.gba` |
+| `NS/` | NS | Covers, settings, capacity display, and switchable Chinese/English UI | `menu_NS.gba` |
+| `NS-Lite/` | NS Lite | Simplified layout with a fixed Chinese UI | `menu_NSLite.gba` |
 
 Choose a menu that matches your cartridge hardware and existing image layout. Fragmented mapping requires compatible hardware and tools. LK and LK Waterline share the classic interface; their main difference is the supported image layout and mapping method.
 
@@ -24,6 +24,8 @@ Choose a menu that matches your cartridge hardware and existing image layout. Fr
 Download an individual menu or the four-menu bundle from [Releases](https://github.com/ChisLightyear/ChisFlash-Multicart-Menus/releases), then import or update it using a compatible ChisFlash client or multicart builder.
 
 Menu ROMs contain no games. To update an existing cartridge, use the tool's menu-update function. Do not flash a standalone menu ROM as though it were a complete multicart image.
+
+Both NS menus also read Ausar CHDR game lists and show covers imported on compatible Waterline cartridges. On a cartridge running firmware with menu filename support, copy either NS ROM over USB to replace the installed menu. The cartridge displays it as `menu.gba`.
 
 ## Build
 

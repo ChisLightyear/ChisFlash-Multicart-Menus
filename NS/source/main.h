@@ -202,7 +202,8 @@ typedef enum CartBackend_
 	CART_BACKEND_NONE = 0,
 	CART_BACKEND_LEGACY = 1,
 	CART_BACKEND_WL = 2,
-	CART_BACKEND_UNIVERSAL = 3
+	CART_BACKEND_UNIVERSAL = 3,
+	CART_BACKEND_AUSAR = 4
 } CartBackend;
 
 typedef enum CartridgeCapacitySource_

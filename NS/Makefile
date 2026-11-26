@@ -20,7 +20,7 @@ include $(DEVKITARM)/gba_rules
 # the makefile is found
 #
 #---------------------------------------------------------------------------------
-TARGET := universal_menu
+TARGET := menu_NS
 BUILD ?= ../.build/NS
 SOURCES		:= source
 INCLUDES	:= include

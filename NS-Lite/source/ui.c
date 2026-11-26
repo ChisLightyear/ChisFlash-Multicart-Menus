@@ -5,6 +5,8 @@
 
 #include "font.h"
 #include "ui.h"
+#include "flash.h"
+#include "chd_cover.h"
 
 const char GbaSimplifiedNsSignature[] = "SNSF";
 
@@ -81,6 +83,7 @@ static const u8 *sCoverPack;
 static CoverPackHeader sCoverHeader;
 static u32 sCoverPackSize;
 static BOOL sCoverUsesEntrySlots;
+static BOOL sAusarCovers;
 
 static const u16 digit_pixels[10] = {
 	0x7B6F, 0x2C97, 0x73E7, 0x73CF, 0x5BC9,
@@ -378,7 +381,12 @@ static const u8 *UiGetCoverBitmap(u8 cover_index) {
 
 static const u8 *UiGetItemCover(const ItemConfig *item, u16 entry_slot) {
 	u16 cover_index;
-	if (item == NULL || sCoverPack == NULL) return NULL;
+	if (item == NULL) return NULL;
+    if (sAusarCovers) {
+        if (item->cover_index != COVER_BANK_A && item->cover_index != COVER_BANK_B) return NULL;
+        return (const u8 *)AGB_ROM + chd_cover_addr(item->save_index,item->cover_index);
+    }
+    if (sCoverPack == NULL) return NULL;
 	if ((item->cover_flags & UI_COVER_FLAG_PRESENT) != 0) {
 		cover_index = item->cover_index;
 	} else if (sCoverUsesEntrySlots) {
@@ -405,7 +413,7 @@ IWRAM_CODE ARM_CODE static void UiDrawCard(volatile u16 *buffer, s16 x, u16 item
 	UiFillRect(buffer, card_x, card_y, card_width, card_height, color);
 
 	BOOL cover_drawn = FALSE;
-	if (sCoverPack != NULL) {
+	if (sCoverPack != NULL || sAusarCovers) {
 		const u8 *cover = UiGetItemCover(item, entry_slot);
 		if (cover != NULL) {
 			UiBlitCover(buffer, x, UI_CARD_Y - lift, cover);
@@ -434,6 +442,10 @@ void UiInitialize(void) {
 	memset(sCoverCache, 0, sizeof(sCoverCache));
 	sCoverCacheStamp = 0;
 	sCoverUsesEntrySlots = FALSE;
+    sAusarCovers = CartridgeGetProfile()->backend == CART_BACKEND_AUSAR;
+    if (sAusarCovers) {
+        for (unsigned i = 32; i < 212; i++) BG_PALETTE[i] = cover_rgb555(i);
+    }
 
 	BG_PALETTE[UI_COLOR_BACKGROUND] = RGB555(0xF7, 0xF8, 0xFA);
 	BG_PALETTE[UI_COLOR_SURFACE] = RGB555(0xFF, 0xFF, 0xFF);
@@ -462,7 +474,7 @@ void UiInitialize(void) {
 
 	CoverTailTrailer trailer;
 	memcpy(&trailer, UI_COVER_ROM_BASE + UI_COVER_TAIL_TRAILER_OFFSET, sizeof(trailer));
-	if (trailer.magic == UI_COVER_TAIL_MAGIC &&
+	if (!sAusarCovers && trailer.magic == UI_COVER_TAIL_MAGIC &&
 		trailer.version == UI_COVER_FORMAT_VERSION &&
 		trailer.size == sizeof(CoverTailTrailer) &&
 		trailer.pack_offset < UI_COVER_TAIL_TRAILER_OFFSET &&
