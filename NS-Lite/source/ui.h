@@ -60,6 +60,7 @@ typedef struct UiMenuView_
 	const UiMenuMotion *motion;
 	const UiFeedback *feedback;
 	const UiTitleScroll *title_scroll;
+	BOOL empty_english;
 } UiMenuView;
 
 void UiInitialize(void);

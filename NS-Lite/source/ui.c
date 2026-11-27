@@ -639,7 +639,7 @@ IWRAM_CODE ARM_CODE void UiRenderMenu(const UiMenuView *view) {
 		if (view->status_tone == UI_STATUS_ERROR && view->status_text != NULL && view->status_length > 0) {
 			DrawText(11, 27, ALIGN_LEFT, (u16 *)view->status_text, view->status_length, font, buffer, FALSE);
 		} else {
-			DrawText(11, 27, ALIGN_LEFT, u"暂无游戏", 4, font, buffer, FALSE);
+			DrawText(11, 27, ALIGN_LEFT, view->empty_english ? u"NO GAMES" : u"暂无游戏", view->empty_english ? 8 : 4, font, buffer, FALSE);
 		}
 	}
 

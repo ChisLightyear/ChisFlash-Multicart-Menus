@@ -294,8 +294,14 @@ int main(void) {
 		.title_scroll = &title_scroll
 	};
 
+	LoadFlashStatusOrDefaults(roms_total);
 	if (roms_total == 0) {
-		SetStatusText(status_ascii, status_unicode, cartridge->backend == CART_BACKEND_AUSAR ? "请通过 USB 添加游戏" : "请先用合卡器添加游戏", &status_length);
+		view.empty_english = sFlashStatus.settings_magic != MAGIC_MENU_SETTINGS
+			|| (sFlashStatus.settings_flags & MENU_SETTING_ENGLISH) != 0;
+		const char *hint = cartridge->backend == CART_BACKEND_AUSAR
+			? (view.empty_english ? "ADD GAMES VIA USB" : "请通过 USB 添加游戏")
+			: (view.empty_english ? "USE ROM BUILDER" : "请先用合卡器添加游戏");
+		SetStatusText(status_ascii, status_unicode, hint, &status_length);
 		view.status_length = status_length;
 		UiRenderMenu(&view);
 		MenuWaitForVBlank();
@@ -303,7 +309,6 @@ int main(void) {
 		while (1) MenuWaitForVBlank();
 	}
 
-	LoadFlashStatusOrDefaults(roms_total);
 	if (sFlashStatus.last_boot_menu_index != 0xFFFF) {
 		selected_index = sFlashStatus.last_boot_menu_index;
 	}

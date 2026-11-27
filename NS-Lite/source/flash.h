@@ -15,6 +15,8 @@ Author: Lesserkuma (github.com/lesserkuma), ZaindORp (github.com/orzgithub)
     }
 
 #define MAGIC_FLASH_STATUS 0x414D554B
+#define MAGIC_MENU_SETTINGS 0x53
+#define MENU_SETTING_ENGLISH (1 << 4)
 
 typedef enum BootGameError_
 {
@@ -37,6 +39,9 @@ typedef struct __attribute__((packed)) FlashStatus_
     u8 last_boot_save_index;
     SAVE_TYPE last_boot_save_type;
     u8 sram_bank_type;
+    /* 与 NS 完整版共用状态区格式，写回启动状态时保留语言设置。 */
+    u8 settings_magic;
+    u8 settings_flags;
 } FlashStatus;
 
 void CartridgeInitialize(void);

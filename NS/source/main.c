@@ -327,6 +327,7 @@ int main(void) {
 		.toolbar_pressed = FALSE
 	};
 
+	LoadFlashStatusOrDefaults(roms_total);
 	if (roms_total == 0) {
 		SetStatusText(status_ascii, status_unicode, cartridge->backend == CART_BACKEND_AUSAR
 			? UiLanguageText("请通过 USB 添加游戏", "ADD GAMES VIA USB")
@@ -338,7 +339,6 @@ int main(void) {
 		while (1) MenuWaitForVBlank();
 	}
 
-	LoadFlashStatusOrDefaults(roms_total);
 	AudioSetEnabled((sFlashStatus.settings_flags & MENU_SETTING_SOUND) != 0);
 	if ((sFlashStatus.settings_flags & MENU_SETTING_RESUME) != 0 && sFlashStatus.last_boot_menu_index != 0xFFFF) {
 		selected_index = sFlashStatus.last_boot_menu_index;
